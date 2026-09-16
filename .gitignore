@@ -1,0 +1,13 @@
+# Артефакты bz_triage
+artifacts_*/
+out/
+*.tmp
+
+# Логи
+*.log
+
+# macOS
+.DS_Store
+
+# Временные каталоги запусков
+bzt.*
