@@ -34,7 +34,7 @@ Graylog как центральный анализатор.
 - Кроссплатформенный (macOS / Linux / Windows) — одна логика на всех хостах.
 - Регулярно обновляется вендором.
 
-### Почему `--dsthost` / `--dstport`, а не Filebeat / Logstash / Vector
+### Почему `--dstaddr` / `--dstport`, а не Filebeat / Logstash / Vector
 
 - У `bz_triage` уже есть встроенная отправка по сети — не нужно
   ставить и конфигурировать промежуточный шиппер.
@@ -63,7 +63,7 @@ Graylog как центральный анализатор.
 1. `launchd` запускает `bzt-stream.sh` по расписанию.
 2. Скрипт создаёт `mktemp -d /tmp/bzt.XXXXXX`.
 3. `bz_triage` собирает данные в `outdir` и параллельно шлёт JSON-строки
-   на `--dsthost:--dstport`.
+   на `--dstaddr:--dstport`.
 4. Graylog принимает поток через Raw TCP Input.
 5. JSON Extractor раскладывает поля.
 6. Streams / Pipelines / алерты работают поверх структурированных полей.
@@ -75,12 +75,12 @@ Graylog как центральный анализатор.
   запуском по расписанию.
 - Нет фильтрации на стороне хоста: если поле не нужно, его надо
   удалять в Graylog Pipeline.
-- `--dsthost` не отключает локальное сохранение — `outdir` нужно
+- `--dstaddr` не отключает локальное сохранение — `outdir` нужно
   чистить самому (в нашем скрипте это делает `trap`).
 
 ## Что дальше
 
-- Проверить поведение `--dsthost` через `nc -l` (см. `troubleshooting.md`).
+- Проверить поведение `--dstaddr` через `nc -l` (см. `troubleshooting.md`).
 - Настроить JSON Extractor в Graylog (см. `graylog-setup.md`).
 - Добавить Pipeline Rule для удаления `file_content`.
 - Замерить объём потока при разных профилях.

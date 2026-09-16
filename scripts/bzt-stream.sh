@@ -47,7 +47,7 @@ OUTDIR=$(mktemp -d /tmp/bzt.XXXXXX)
     -p="$PROFILES" \
     --limit-time="$LIMIT_TIME" \
     --outdir="$OUTDIR" \
-    --dsthost="$GRAYLOG_HOST" \
+    --dstaddr="$GRAYLOG_HOST" \
     --dstport="$GRAYLOG_PORT" \
     >/dev/null 2>&1 &
 TRIAGE_PID=$!

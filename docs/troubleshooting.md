@@ -40,7 +40,7 @@ whoami
 /Users/igor/bz_triage-v1.3.0.1-darwin-arm64 --help 2>&1 | head -60
 ```
 
-Проверить точный синтаксис и наличие флагов `--dsthost`, `--dstport`,
+Проверить точный синтаксис и наличие флагов `--dstaddr`, `--dstport`,
 `--dstproto`.
 
 ## `bz_triage` требует существующий `outdir`
@@ -85,7 +85,7 @@ OUTDIR=$(mktemp -d /tmp/bzt.XXXXXX)
 **Рекомендация:** интервал в 2–3 раза больше времени сбора. Если
 `investigation` собирается за 30 секунд — интервал 15–30 минут.
 
-## Прямая отправка через `--dsthost` не работает
+## Прямая отправка через `--dstaddr` не работает
 
 **Диагностика:** запустить локальный listener и посмотреть, что придёт.
 
@@ -98,7 +98,7 @@ nc -l 5555 > /tmp/bzt_stream.log
     -p=hostinfo \
     --limit-time=60 \
     --outdir=/tmp/bzt_test \
-    --dsthost=127.0.0.1 \
+    --dstaddr=127.0.0.1 \
     --dstport=5555
 ```
 

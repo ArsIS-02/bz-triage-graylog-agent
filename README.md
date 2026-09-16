@@ -2,7 +2,7 @@
 
 Используем BI.ZONE Triage как готовый коллектор телеметрии на macOS.
 Скрипт-обёртка периодически запускает `bz_triage` и отправляет JSON-поток
-напрямую в Graylog через `--dsthost` / `--dstport`.
+напрямую в Graylog через `--dstaddr` / `--dstport`.
 
 ## Идея
 
@@ -24,7 +24,7 @@ Graylog принимает поток через **Raw/Plaintext TCP Input** и 
 ```text
 ┌─────────────┐     JSON Lines      ┌──────────────┐
 │ bz_triage   │ ──────────────────> │   Graylog    │
-│ (macOS)     │  --dsthost:port     │ Raw TCP +    │
+│ (macOS)     │  --dstaddr:port     │ Raw TCP +    │
 └─────────────┘                     │ JSON Extractor│
        │                            └──────────────┘
        │ --outdir=/tmp/bzt.XXXXXX
@@ -88,7 +88,7 @@ Graylog принимает поток через **Raw/Plaintext TCP Input** и 
 
 ## Безопасность и диск
 
-- `bz_triage` всегда пишет `outdir` локально, даже при `--dsthost`.
+- `bz_triage` всегда пишет `outdir` локально, даже при `--dstaddr`.
 - Без очистки за месяц накопятся десятки гигабайт.
 - В скрипте используется `mktemp -d` + `trap cleanup EXIT INT TERM`.
 - Watchdog убивает процесс, если `outdir` превысил `OUTDIR_MAX_MB`.
@@ -98,7 +98,7 @@ Graylog принимает поток через **Raw/Plaintext TCP Input** и 
 - [x] Архитектура определена.
 - [x] Черновик обёртки и launchd-plist.
 - [x] Набор полей предложен.
-- [ ] Проверка `--dsthost` через `nc -l`.
+- [ ] Проверка `--dstaddr` через `nc -l`.
 - [ ] Настройка JSON Extractor в Graylog.
 - [ ] Прогон на реальном хосте и замер объёма.
 
