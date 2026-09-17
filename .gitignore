@@ -12,6 +12,10 @@ out/
 # Временные каталоги запусков
 bzt.*
 
-# Вендорский бинарь bz_triage (не коммитим)
+# Вендорский бинарь bz_triage (не коммитим — разный для arm64/amd64)
 bz_triage-v*
 bz_triage
+
+# Старые plist-ы из первой версии (заменены на ru.bi.zone.bzt-*)
+com.example.bzt-collector.plist
+*.plist.bak

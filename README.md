@@ -1,107 +1,101 @@
-# BZ Triage → Graylog (lightweight agent)
+# bz-triage-graylog-agent
 
-Используем BI.ZONE Triage как готовый коллектор телеметрии на macOS.
-Скрипт-обёртка периодически запускает `bz_triage` и отправляет JSON-поток
-напрямую в Graylog через `--dstaddr` / `--dstport`.
+Лёгкий агент на базе [BI.ZONE Triage](https://bi.zone/) для отправки
+телеметрии macOS в Graylog потоком.
 
 ## Идея
 
-Не пишем свой EDR-агент. Берём подписанный бинарь BI.ZONE Triage,
-который уже умеет собирать autoruns, процессы, сеть, пользователей,
-подписи и хеши. Оборачиваем его в launchd-демон, который:
-
-1. создаёт временный `outdir` через `mktemp -d`;
-2. запускает `bz_triage` с нужными профилями;
-3. стримит JSON-записи по TCP в Graylog;
-4. удаляет `outdir` через `trap` (даже при падении);
-5. следит за размером `outdir` через watchdog.
-
-Graylog принимает поток через **Raw/Plaintext TCP Input** и разбирает
-каждую JSON-строку через **JSON Extractor**.
+Не пишем свой EDR-агент. Используем `bz_triage` как готовый коллектор
+и оборачиваем его в 3 `launchd`-агента с разной частотой и разными
+наборами профилей. Данные уходят напрямую в Graylog через `nc -w`,
+без промежуточных шипперов.
 
 ## Схема
 
 ```text
-┌─────────────┐     JSON Lines      ┌──────────────┐
-│ bz_triage   │ ──────────────────> │   Graylog    │
-│ (macOS)     │  --dstaddr:port     │ Raw TCP +    │
-└─────────────┘                     │ JSON Extractor│
-       │                            └──────────────┘
-       │ --outdir=/tmp/bzt.XXXXXX
-       ▼
-   временные файлы
-   (удаляются trap'ом)
+┌──────────────────┐   JSON Lines   ┌───────────────┐
+│ bz_triage        │ ────────────>  │   Graylog     │
+│ + bzt-filter.pl  │  Raw TCP :9095 │  Raw/Plaintext│
+│ + nc             │                │  + JSON       │
+└──────────────────┘                │  Extractor    │
+                                    └───────────────┘
 ```
+
+## Три агента на каждом хосте
+
+| Агент | Профили | Интервал | Зачем |
+|-------|---------|----------|-------|
+| `bzt-activity` | `hostinfo,netconn,processes,sessions,users` | 600 сек (10 мин) | Активность в реальном времени |
+| `bzt-persistence` | `hostinfo,autoruns` | 1800 сек (30 мин) | Мониторинг persistence-механизмов |
+| `bzt-baseline` | `investigation` | раз в сутки, 03:00 | Полный снапшот для forensic |
+
+Почему именно так — см. [`docs/architecture.md`](docs/architecture.md).
 
 ## Требования
 
-- macOS (проверено на Mac mini M2, macOS 27.0 beta).
-- Root-права для `bz_triage`.
-- `bz_triage` версии 1.3.0.1+ (скачать с сайта BI.ZONE).
-- Graylog с включённым Raw/Plaintext TCP Input.
-- `jq` и `curl` не нужны — отправка идёт самим сенсором.
+- macOS (проверено на Mac mini M2, MacBook Pro M4 Pro, MacBook Pro Intel).
+- Root-права.
+- `bz_triage` **arm64** для Apple Silicon, **amd64** для Intel.
+- Graylog с Raw/Plaintext TCP Input на 9095.
 
 ## Установка
 
-1. Положить бинарь, например, в `/usr/local/bin/bz_triage`.
-2. Скопировать `scripts/bzt-stream.sh` в `/usr/local/bin/`.
-3. Поправить в скрипте переменные:
-   - `TRIAGE_BIN`
-   - `GRAYLOG_HOST`
-   - `GRAYLOG_PORT`
-   - `PROFILES`
-   - `OUTDIR_MAX_MB`
-4. Скопировать `plist` в `/Library/LaunchDaemons/` и загрузить:
+1. Положить бинарь `bz_triage` (правильной архитектуры) в `/usr/local/bin/bz_triage`.
+2. Скопировать скрипты:
+
    ```bash
-   sudo launchctl load /Library/LaunchDaemons/com.example.bzt-collector.plist
+   sudo cp scripts/bzt-stream.sh /usr/local/bin/
+   sudo cp scripts/bzt-filter.pl /usr/local/bin/
+   sudo chmod 755 /usr/local/bin/bzt-stream.sh /usr/local/bin/bzt-filter.pl
    ```
 
-## Настройка Graylog
+3. Поправить `GRAYLOG_HOST` и `GRAYLOG_PORT` в `/usr/local/bin/bzt-stream.sh`.
 
-1. Создать **Input → Raw/Plaintext TCP** на порту, например `5555`.
-2. Добавить **Extractor → JSON**:
-   - Key: пусто (парсить всё сообщение).
-   - `try_extract_all`: `true`.
-3. Для поля `EventTime` добавить **Date Extractor** с форматом
-   `yyyy-MM-dd'T'HH:mm:ss.SSS`.
-4. (Опционально) Pipeline Rule для удаления `file_content`, если он
-   всё-таки попал в поток.
+4. Установить три plist-а:
 
-## Набор полей
+   ```bash
+   sudo cp scripts/ru.bi.zone.bzt-*.plist /Library/LaunchDaemons/
+   sudo chown root:wheel /Library/LaunchDaemons/ru.bi.zone.bzt-*.plist
+   sudo chmod 644 /Library/LaunchDaemons/ru.bi.zone.bzt-*.plist
+   ```
 
-Обязательные:
-`SystemHostname`, `SystemMachineSN`, `event_type`, `event_type_vendor`,
-`Action`, `file_path`, `file_name`, `file_sha256`, `file_sig_status`,
-`file_sig_ident`, `cmdline`, `EventTime`, `inventory_task_name`,
-`inventory_session_id`.
+5. Загрузить:
 
-Рекомендуемые:
-`dev_os`, `dev_ipv4`, `dev_users`, `file_owner_name`, `file_group_name`,
-`cmdline_fingerprint`, `sensor_version`, `rule_name`.
+   ```bash
+   for p in activity persistence baseline; do
+       sudo launchctl bootstrap system /Library/LaunchDaemons/ru.bi.zone.bzt-${p}.plist
+   done
+   sudo launchctl list | grep bzt
+   ```
 
-Для сетевых профилей — все `net_*` поля.
+6. Форс-запуск для проверки:
 
-**Отфильтровать:** `file_content`, `file_yara_*` (если YARA не нужна),
-`file_tgt_*` (опционально).
+   ```bash
+   sudo launchctl kickstart -k system/ru.bi.zone.bzt-activity
+   sudo launchctl kickstart -k system/ru.bi.zone.bzt-persistence
+   sleep 90
+   sudo tail -3 /var/log/bzt-activity.log
+   sudo tail -3 /var/log/bzt-persistence.log
+   ```
 
-Подробнее — в `docs/fields.md`.
+## Документация
 
-## Безопасность и диск
+- [`docs/architecture.md`](docs/architecture.md) — почему 3 агента
+- [`docs/fields.md`](docs/fields.md) — какие поля отправляются
+- [`docs/graylog-setup.md`](docs/graylog-setup.md) — настройка Graylog
+- [`docs/troubleshooting.md`](docs/troubleshooting.md) — все грабли
 
-- `bz_triage` всегда пишет `outdir` локально, даже при `--dstaddr`.
-- Без очистки за месяц накопятся десятки гигабайт.
-- В скрипте используется `mktemp -d` + `trap cleanup EXIT INT TERM`.
-- Watchdog убивает процесс, если `outdir` превысил `OUTDIR_MAX_MB`.
+## Известные грабли (кратко)
 
-## Статус
+- `timeout` отсутствует на macOS — не использовать в скриптах.
+- `set -e` + `nc` на большом объёме = падение без `done`.
+- Локи должны быть per-profile + с автоочисткой по PID.
+- В Graylog правильно `http_publish_uri`, а не `publish_uri`.
+- Heap Graylog и OpenSearch — минимум 4 ГБ.
+- Retention обязателен, иначе диск забьётся за месяц.
 
-- [x] Архитектура определена.
-- [x] Черновик обёртки и launchd-plist.
-- [x] Набор полей предложен.
-- [ ] Проверка `--dstaddr` через `nc -l`.
-- [ ] Настройка JSON Extractor в Graylog.
-- [ ] Прогон на реальном хосте и замер объёма.
+Подробно — в [`docs/troubleshooting.md`](docs/troubleshooting.md).
 
 ## Лицензия
 
-Скрипты — MIT. Сам `bz_triage` — собственность BI.ZONE, см. их лицензию.
+Скрипты — MIT. `bz_triage` — собственность BI.ZONE.

@@ -1,70 +1,68 @@
 #!/bin/bash
+# bzt-stream.sh — запускает bz_triage с профилями из аргумента и шлёт JSON в Graylog
 #
-# bzt-stream.sh — обёртка вокруг bz_triage для потоковой отправки в Graylog.
+# Usage: bzt-stream.sh "<profiles>" <limit_time>
 #
-# Что делает:
-#   1. Создаёт уникальный временный outdir через mktemp -d.
-#   2. Запускает bz_triage с указанными профилями.
-#   3. Параллельно следит за размером outdir (watchdog).
-#   4. По завершении (в т.ч. при падении) удаляет outdir через trap.
+# Особенности:
+#   - НЕ используем set -e: пайплайн с nc может вернуть ошибку (broken pipe
+#     при большом объёме) — это не должно ломать скрипт.
+#   - НЕ используем timeout: на macOS его нет.
+#   - Per-profile lock с PID-файлом и автоочисткой stale lock: разные агенты
+#     не блокируют друг друга, а зависший запуск не держит lock вечно.
+#   - nc -w 180: 3 минуты на отправку, хватает для autoruns.
 #
-# Требует root-прав (bz_triage собирает данные из системных путей).
-#
-set -euo pipefail
+set -uo pipefail
 
-# ─── Настройки ───────────────────────────────────────────────────────────────
+PROFILES="${1:-hostinfo,netconn,processes,sessions,users}"
+LIMIT_TIME="${2:-90}"
+
 TRIAGE_BIN="/usr/local/bin/bz_triage"
-GRAYLOG_HOST="graylog.example.org"
-GRAYLOG_PORT="5555"
-PROFILES="investigation"
-LIMIT_TIME=180
-OUTDIR_MAX_MB=2048
+FILTER_BIN="/usr/local/bin/bzt-filter.pl"
+GRAYLOG_HOST="192.168.1.210"
+GRAYLOG_PORT="9095"
 
-# ─── Служебные переменные ────────────────────────────────────────────────────
-OUTDIR=""
-TRIAGE_PID=""
-WATCHDOG_PID=""
+# Уникальный lock по профилю
+PROFILE_TAG=$(echo "$PROFILES" | tr ',' '_' | tr -cd 'a-zA-Z0-9_-')
+LOCKDIR="/var/run/bzt.${PROFILE_TAG}.lock"
+
+# Автоочистка stale lock: если процесс-владелец мёртв — снести
+if [ -d "$LOCKDIR" ]; then
+    PIDFILE="$LOCKDIR/pid"
+    if [ -f "$PIDFILE" ]; then
+        OWNER_PID=$(cat "$PIDFILE" 2>/dev/null)
+        if [ -n "$OWNER_PID" ] && ! kill -0 "$OWNER_PID" 2>/dev/null; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] removing stale lock (owner pid $OWNER_PID is dead)"
+            rm -rf "$LOCKDIR"
+        fi
+    else
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] removing stale lock (no pid file)"
+        rm -rf "$LOCKDIR"
+    fi
+fi
+
+if ! mkdir "$LOCKDIR" 2>/dev/null; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] another run is active, skipping"
+    exit 0
+fi
+echo $$ > "$LOCKDIR/pid"
+
+TMPDIR_BZT=$(mktemp -d /tmp/bzt.XXXXXX)
 
 cleanup() {
     set +e
-    if [ -n "$WATCHDOG_PID" ]; then
-        kill "$WATCHDOG_PID" 2>/dev/null
-    fi
-    if [ -n "$TRIAGE_PID" ]; then
-        wait "$TRIAGE_PID" 2>/dev/null
-    fi
-    sleep 1
-    if [ -n "$OUTDIR" ] && [ -d "$OUTDIR" ]; then
-        rm -rf "$OUTDIR"
-    fi
+    rm -rf "$TMPDIR_BZT"
+    rm -rf "$LOCKDIR"
 }
 trap cleanup EXIT INT TERM
 
-# ─── Основной запуск ─────────────────────────────────────────────────────────
-OUTDIR=$(mktemp -d /tmp/bzt.XXXXXX)
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] start: profiles=$PROFILES limit=${LIMIT_TIME}s"
 
 "$TRIAGE_BIN" \
     -p="$PROFILES" \
     --limit-time="$LIMIT_TIME" \
-    --outdir="$OUTDIR" \
-    --dstaddr="$GRAYLOG_HOST" \
-    --dstport="$GRAYLOG_PORT" \
-    >/dev/null 2>&1 &
-TRIAGE_PID=$!
+    --tempdir="$TMPDIR_BZT" \
+    --stdout 2>/dev/null \
+  | "$FILTER_BIN" \
+  | nc -w 180 "$GRAYLOG_HOST" "$GRAYLOG_PORT" || true
 
-# ─── Watchdog на размер outdir ───────────────────────────────────────────────
-(
-    while kill -0 "$TRIAGE_PID" 2>/dev/null; do
-        SIZE=$(du -sm "$OUTDIR" 2>/dev/null | awk '{print $1}')
-        if [ "${SIZE:-0}" -gt "$OUTDIR_MAX_MB" ]; then
-            echo "[watchdog] outdir > ${OUTDIR_MAX_MB} МБ, kill bz_triage" >&2
-            kill -TERM "$TRIAGE_PID" 2>/dev/null
-            break
-        fi
-        sleep 10
-    done
-) &
-WATCHDOG_PID=$!
-
-# ─── Ожидание завершения ─────────────────────────────────────────────────────
-wait "$TRIAGE_PID" || true
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] done"
