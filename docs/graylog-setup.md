@@ -9,7 +9,7 @@
 | Параметр | Значение |
 |----------|----------|
 | Title | `BiZone macOS` (или любое) |
-| Port | `9095` |
+| Port | `<порт input'а>` |
 | Bind address | `0.0.0.0` |
 | TLS | по инфраструктуре (по умолчанию выкл) |
 | Number of workers | 1–2 |
@@ -74,8 +74,8 @@ sudo systemctl restart graylog-server
 
 ```ini
 http_bind_address = 0.0.0.0:9000
-http_external_uri = http://192.168.1.210:9000/
-http_publish_uri = http://192.168.1.210:9000/
+http_external_uri = http://<ip-адрес Graylog>:9000/
+http_publish_uri = http://<ip-адрес Graylog>:9000/
 
 # Увеличенные таймауты при нагрузке
 stale_leader_timeout = 2000
@@ -108,7 +108,7 @@ sudo systemctl restart graylog-server
 mongo graylog --eval "db.nodes.find().pretty()"
 ```
 
-В `transport_address` должно быть `http://192.168.1.210:9000/api/`.
+В `transport_address` должно быть `http://<ip-адрес Graylog>:9000/api/`.
 
 ## 5. systemd timeout
 
@@ -205,7 +205,7 @@ Value: "event_log_source":"InventoryNG"
 
 ```bash
 echo '{"test":"hello","host":"macbook","ts":"'"$(date -u +%FT%TZ)"'"}' \
-  | nc -w 5 192.168.1.210 9095
+  | nc -w 5 <ip-адрес Graylog> <порт input'а>
 ```
 
 **Search → Last 5 minutes** → найти `test: hello`.
@@ -214,7 +214,7 @@ echo '{"test":"hello","host":"macbook","ts":"'"$(date -u +%FT%TZ)"'"}' \
 
 - Input не `Running` → `System → Inputs`, проверить статус.
 - Порт не тот → сравнить с `GRAYLOG_PORT` в `bzt-stream.sh`.
-- Firewall на сервере → `nc -zv 192.168.1.210 9095` с клиента.
+- Firewall на сервере → `nc -zv <ip-адрес Graylog> <порт input'а>` с клиента.
 
 **Если сообщение есть, но поля не разложены:**
 
