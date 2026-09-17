@@ -13,12 +13,12 @@
 ## Схема
 
 ```text
-┌──────────────────┐   JSON Lines   ┌───────────────┐
-│ bz_triage        │ ────────────>  │   Graylog     │
-│ + bzt-filter.pl  │  Raw TCP :9095 │  Raw/Plaintext│
-│ + nc             │                │  + JSON       │
-└──────────────────┘                │  Extractor    │
-                                    └───────────────┘
+┌──────────────────┐   JSON Lines             ┌───────────────┐
+│ bz_triage        │ ------------------------>│   Graylog     │
+│ + bzt-filter.pl  │  Raw TCP :<порт input'а> │  Raw/Plaintext│
+│ + nc             │                          │  + JSON       │
+└──────────────────┘                          │  Extractor    │
+                                              └───────────────┘
 ```
 
 ## Три агента на каждом хосте
@@ -36,7 +36,7 @@
 - macOS (проверено на Mac mini M2, MacBook Pro M4 Pro, MacBook Pro Intel).
 - Root-права.
 - `bz_triage` **arm64** для Apple Silicon, **amd64** для Intel.
-- Graylog с Raw/Plaintext TCP Input на 9095.
+- Graylog с Raw/Plaintext TCP Input на <порту> (у меня 9095).
 
 ## Установка
 
