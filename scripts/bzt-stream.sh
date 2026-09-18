@@ -4,13 +4,11 @@
 # Usage: bzt-stream.sh "<profiles>" <limit_time>
 #
 # Особенности:
-#   - НЕ используем set -e: пайплайн с nc может вернуть ошибку (broken pipe
-#     при большом объёме) — это не должно ломать скрипт.
+#   - НЕ используем set -e: пайплайн с nc может вернуть ошибку (broken pipe).
 #   - НЕ используем timeout: на macOS его нет.
-#   - Per-profile lock с PID-файлом и автоочисткой stale lock: разные агенты
-#     не блокируют друг друга, а зависший запуск не держит lock вечно.
-#   - nc -w 180: 3 минуты на отправку, хватает для autoruns.
-#
+#   - Per-profile lock с PID-файлом и автоочисткой stale lock.
+#   - nc -G 5 -w 1: правильные таймауты для macOS BSD nc.
+#   - cleanup чистит за собой временные каталоги bz_triage (edr-data*, bzt.*).
 set -uo pipefail
 
 PROFILES="${1:-hostinfo,netconn,processes,sessions,users}"
@@ -21,11 +19,9 @@ FILTER_BIN="/usr/local/bin/bzt-filter.pl"
 GRAYLOG_HOST="192.168.1.210"
 GRAYLOG_PORT="9095"
 
-# Уникальный lock по профилю
 PROFILE_TAG=$(echo "$PROFILES" | tr ',' '_' | tr -cd 'a-zA-Z0-9_-')
 LOCKDIR="/var/run/bzt.${PROFILE_TAG}.lock"
 
-# Автоочистка stale lock: если процесс-владелец мёртв — снести
 if [ -d "$LOCKDIR" ]; then
     PIDFILE="$LOCKDIR/pid"
     if [ -f "$PIDFILE" ]; then
@@ -52,6 +48,8 @@ cleanup() {
     set +e
     rm -rf "$TMPDIR_BZT"
     rm -rf "$LOCKDIR"
+    find /tmp -maxdepth 1 -name "edr-data*" -type d -mmin +10 -exec rm -rf {} \; 2>/dev/null
+    find /tmp -maxdepth 1 -name "bzt.*"    -type d -mmin +10 -exec rm -rf {} \; 2>/dev/null
 }
 trap cleanup EXIT INT TERM
 
@@ -63,6 +61,6 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] start: profiles=$PROFILES limit=${LIMIT_TIM
     --tempdir="$TMPDIR_BZT" \
     --stdout 2>/dev/null \
   | "$FILTER_BIN" \
-  | nc -w 180 "$GRAYLOG_HOST" "$GRAYLOG_PORT" || true
+  | nc -G 5 -w 1 "$GRAYLOG_HOST" "$GRAYLOG_PORT" || true
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] done"

@@ -3,35 +3,21 @@
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>Label</key>
-    <string>ru.bi.zone.bzt-baseline</string>
-
+    <key>Label</key><string>ru.bi.zone.bzt-baseline</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/bzt-stream.sh</string>
         <string>investigation</string>
         <string>300</string>
     </array>
-
     <key>StartCalendarInterval</key>
     <dict>
-        <key>Hour</key>
-        <integer>3</integer>
-        <key>Minute</key>
-        <integer>0</integer>
+        <key>Hour</key><integer>3</integer>
+        <key>Minute</key><integer>0</integer>
     </dict>
-
-    <key>RunAtLoad</key>
-    <false/>
-
-    <key>StandardOutPath</key>
-    <string>/var/log/bzt-baseline.log</string>
-
-    <key>StandardErrorPath</key>
-    <string>/var/log/bzt-baseline.err</string>
-
-    <key>UserName</key>
-    <string>root</string>
+    <key>RunAtLoad</key><false/>
+    <key>StandardOutPath</key><string>/var/log/bzt-baseline.log</string>
+    <key>StandardErrorPath</key><string>/var/log/bzt-baseline.err</string>
+    <key>UserName</key><string>root</string>
 </dict>
 </plist>
-

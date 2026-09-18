@@ -1,31 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd"\>
 <plist version="1.0">
 <dict>
-    <key>Label</key>
-    <string>ru.bi.zone.bzt-persistence</string>
-
+    <key>Label</key><string>ru.bi.zone.bzt-persistence</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/bzt-stream.sh</string>
         <string>hostinfo,autoruns</string>
         <string>120</string>
     </array>
-
-    <key>StartInterval</key>
-    <integer>1800</integer>
-
-    <key>RunAtLoad</key>
-    <false/>
-
-    <key>StandardOutPath</key>
-    <string>/var/log/bzt-persistence.log</string>
-
-    <key>StandardErrorPath</key>
-    <string>/var/log/bzt-persistence.err</string>
-
-    <key>UserName</key>
-    <string>root</string>
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Minute</key><integer>5</integer></dict>
+        <dict><key>Minute</key><integer>35</integer></dict>
+    </array>
+    <key>RunAtLoad</key><true/>
+    <key>StandardOutPath</key><string>/var/log/bzt-persistence.log</string>
+    <key>StandardErrorPath</key><string>/var/log/bzt-persistence.err</string>
+    <key>UserName</key><string>root</string>
 </dict>
 </plist>
