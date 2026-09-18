@@ -1,16 +1,12 @@
 # Набор полей
 
-`bz_triage` шлёт JSON Lines — каждая запись отдельной строкой.
-После настройки JSON Extractor в Graylog (см.
-[`graylog-setup.md`](graylog-setup.md)) все поля верхнего уровня
-становятся отдельными полями сообщения.
-
-Ниже — рекомендованный минимум и что фильтруется на хосте.
+`bz_triage` шлёт JSON Lines — каждая запись отдельной строкой. После
+настройки JSON Extractor в Graylog (см. [`graylog-setup.md`](graylog-setup.md))
+все поля верхнего уровня становятся отдельными полями сообщения.
 
 ## Что фильтруется на хосте (`bzt-filter.pl`)
 
-Эти поля удаляются **до** отправки в Graylog — они либо огромные,
-либо не нужны для анализа:
+Удаляются **до** отправки в Graylog:
 
 | Поле | Почему удаляем |
 |------|----------------|
@@ -19,8 +15,8 @@
 | `file_yara_status` | То же |
 | `file_yara_matches` | То же |
 
-Если фильтрация не сработала — на стороне Graylog можно добить
-Pipeline Rule (см. `graylog-setup.md`, п.7).
+Плюс: `bz_triage` иногда отдаёт в потоке не JSON-объект, а строку или
+число. Фильтр пропускает их без ошибок.
 
 ## Обязательные поля
 
@@ -33,7 +29,7 @@ Pipeline Rule (см. `graylog-setup.md`, п.7).
 | `dev_os` | Строка версии ОС (например, `macOS 27.0 arm64`) |
 | `dev_os_type` | `darwin`, `linux` |
 | `dev_ipv4` | IP-адрес |
-| `dev_users` | Список пользователей (например, `501(igor)`) |
+| `dev_users` | Список пользователей |
 | `event_type` | Тип события (`HostInfo`, `AsepInfo`, `UserLogonInfo`) |
 | `event_type_vendor` | Вендорский тип (`EndpointState`, `AutorunLaunchDaemonFound`) |
 | `Action` | Действие (дублирует `event_type_vendor` в части профилей) |
@@ -59,13 +55,9 @@ Pipeline Rule (см. `graylog-setup.md`, п.7).
 | `file_sig_ca` | CA подписи |
 | `file_owner_name` | Владелец |
 | `file_group_name` | Группа |
-| `file_owner_id` | UID владельца |
-| `file_group_id` | GID группы |
 | `file_exists` | Файл реально существует по пути |
 | `file_crtime` | Время создания |
 | `file_mtime` | Время модификации |
-| `file_atime` | Время доступа |
-| `file_inode` | Inode |
 | `cmdline` | Командная строка запуска |
 | `file_sig_cdhash` | CDHash подписи (для macOS) |
 
@@ -82,7 +74,7 @@ Pipeline Rule (см. `graylog-setup.md`, п.7).
 | `proc_sha256` | Хеш бинарника |
 | `proc_sig_status` | Статус подписи |
 
-(точные имена полей — из JSON `processes` на конкретной версии сенсора)
+Точные имена полей — из реального JSON.
 
 ## Сетевые соединения (netconn, networks)
 
@@ -96,8 +88,6 @@ Pipeline Rule (см. `graylog-setup.md`, п.7).
 | `net_state` | `LISTEN`, `ESTABLISHED` |
 | `net_pid` | PID процесса |
 | `net_process_name` | Имя процесса |
-
-Точные названия полей зависят от версии сенсора — см. реальный JSON.
 
 ## Пользователи и сессии (users, sessions, logonhist)
 
@@ -142,8 +132,8 @@ Pipeline Rule (см. `graylog-setup.md`, п.7).
 | `dev_boot_time` | Время загрузки хоста |
 | `dev_uptime` | Аптайм (сек) |
 | `dev_install_age` | Возраст ОС (сек) |
-| `customer_id` | ID заказчика (если мультитенант) |
-| `SystemAgentID` | ID агента (`standalone-run` для локального) |
+| `customer_id` | ID заказчика |
+| `SystemAgentID` | ID агента |
 | `EventRulesVersion` | Версия правил |
 
 ## Замечания по типам
@@ -151,13 +141,14 @@ Pipeline Rule (см. `graylog-setup.md`, п.7).
 - `EventTime` — строка ISO 8601 **без таймзоны**
   (например, `2026-09-17T11:38:30.354`). В Graylog настрой
   Date Extractor с форматом `yyyy-MM-dd'T'HH:mm:ss.SSS`.
-  Если не настроить — поле останется строкой, по нему не
-  построить графики и алерты по времени.
-- `event_utc_time` — то же в UTC, удобно для точного сравнения
-  между хостами в разных TZ.
-- Числовые поля (`file_size`, `dev_uptime`, `EventID`) —
-  Graylog сохранит как числа.
+- `event_utc_time` — то же в UTC, удобно для точных сравнений.
+- Числовые (`file_size`, `dev_uptime`, `EventID`) — Graylog сохранит
+  как числа.
 - Логические (`file_exists`, `file_signed`) — как boolean.
+- Поля с большими числовыми значениями (`traceID` в macOS unified logs)
+  могут превышать `Long.MAX_VALUE`. Чтобы не ломать индексацию,
+  переопредели их как `keyword` через index template Graylog
+  (см. [`troubleshooting.md`](troubleshooting.md)).
 
 ## Ссылки
 
